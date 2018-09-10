@@ -5,12 +5,14 @@ more) must be attached to network interface.
 Security scan checks all security groups rules for open ports from 0.0.0.0/0.
 # Requirments
 [Python 2.x or 3.x](https://www.python.org/downloads/)
-Python libs: tabulate and boto3
+
+Python libs: tabulate, boto3, argparse
 
 # Installation
 ```sh
 $ pip install boto3
 $ pip install tabulate
+$ pip install argparse
 ```
 # Usage
 SG Scanner uses IAM role by default (if started from EC2 instance). If you want to start it from on-premise host then you should pass credentials. Also region should be given.
@@ -27,6 +29,11 @@ Usage example:
 ```sh
 $ python sgscanner.py eu-west-1 unattached
 $ python sgscanner.py eu-west-1 unsecure --accesskey="ABCDEF" --secretkey="123456"
+$ python sgscanner.py eu-west-1 unsecure --accesskey="ABCDEF" --secretkey="123456" --ignoreports="40,80,443"
 ```
 # IAM Policy
 Policy with minimum required permissions can be found in `sgscanner-policy.json` file.
+
+# Changelog
+- v0.1.1 - 10.09.2018 - Added possibility to ignore list of ports while scanning security.
+- v0.1.0 - 09.09.2018 - Public Release
