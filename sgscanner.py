@@ -60,8 +60,11 @@ def DescribeUnAttachedSecurityGroups(AllSecurityGroups, client):
 
 # Collecting security group rules
 # Returns list of groups rules in following format: GroupID, GroupName, Protocol, IP, Port, Description
-def DescribeUnsecureSecurityGroups(client):
+def DescribeUnsecureSecurityGroups(client, ignorePorts=None):
     TableData = []
+    ignorePortsList = []
+    if ignorePorts:
+        ignorePortsList = ignorePorts.split(",")
     try:
         AllSecurityGroups = client.describe_security_groups()
     except Exception as e:
@@ -73,9 +76,13 @@ def DescribeUnsecureSecurityGroups(client):
                     continue
                 else:
                     try:
-                        portRange = "{0}-{1}".format(str(ipPermission["FromPort"]), str(ipPermission["ToPort"]))
-                        column = group["GroupId"], group["GroupName"], ipPermission["IpProtocol"], ipRange["CidrIp"], portRange, group["Description"]
-                        TableData.append(column)
+                        # Skip rule, only if port to ignore is not a part of range. Otherwise rule will be printed.
+                        if (str(ipPermission["FromPort"]) in ignorePortsList) and (str(ipPermission["ToPort"]) in ignorePortsList):
+                            continue
+                        else:
+                            portRange = "{0}-{1}".format(str(ipPermission["FromPort"]), str(ipPermission["ToPort"]))
+                            column = group["GroupId"], group["GroupName"], ipPermission["IpProtocol"], ipRange["CidrIp"], portRange, group["Description"]
+                            TableData.append(column)
                     except Exception as e:
                         pass
     return TableData
@@ -89,11 +96,10 @@ def UnattachedScanningMain(session):
     print(tabulate(TableData, headers=["Security Group ID", "Security Group Name"], tablefmt='orgtbl'))
 
 # Main function for scanning unsecure security groups
-def UnsecureScanningMain(session):
+def UnsecureScanningMain(session, ignorePorts=None):
     print("Security scanning.")
-    TableData = DescribeUnsecureSecurityGroups(session.client("ec2"))
-
-    print(tabulate(TableData, headers=["GroupID", "GroupName", "Protocol", "IP", "PortRange", "Description"], tablefmt='orgtbl'))
+    TableData = DescribeUnsecureSecurityGroups(session.client("ec2"), ignorePorts)
+    print(tabulate(TableData, headers=["GroupID", "GroupName", "Protocol", "IP", "PortRange", "Description"], tablefmt='orgtbl'))  
 
 def main():
     # Input args
@@ -102,6 +108,7 @@ def main():
     parser.add_argument("mode", help="What to do? unattached - scanning unattached groups | unsecure - scanning for open ports/IPs.")
     parser.add_argument("--accesskey", help="Amazon Access Key ID. If not specified, IAM role will be used instead.")
     parser.add_argument("--secretkey", help="Amazon Secret Access Key. If not specified, IAM role will be used instead.")
+    parser.add_argument("--ignoreports", help="Define ports to ignore while scanning separated by ',' e.g 80,443,8080")
 
     args = parser.parse_args()
 
@@ -111,7 +118,7 @@ def main():
         UnattachedScanningMain(session)
 
     elif args.mode == "unsecure":
-        UnsecureScanningMain(session)
+        UnsecureScanningMain(session, args.ignoreports)
 
     else:
         print("Wrong mode.")
