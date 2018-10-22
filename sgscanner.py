@@ -3,36 +3,36 @@ from tabulate import tabulate
 
 # Creates AWS session.
 # Returns session object with specified region and with/without AWS credentials.
-def CreateSession(accesskey, secretkey, region):
+def create_session(access_key, secret_key, region):
     try:
-        if not accesskey or not secretkey:
+        if not access_key or not secret_key:
             return boto3.Session(
                 region_name=region
             )
         else:
             return boto3.Session(
-                aws_access_key_id=accesskey,
-                aws_secret_access_key=secretkey,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
                 region_name=region)
     except Exception as e:
         print("Something wrong while creating AWS session. ", e)
         sys.exit()
 
 # Scans all security groups in AWS environment and returns list of IDs.
-def GetAllSecurityGroups(client):
+def describe_all_security_groups(client):
     try:
-        AllSecurityGroups = client.describe_security_groups()
+        all_security_groups = client.describe_security_groups()
     except Exception as e:
         print("Something wrong while gettin data about SG from AWS. ", e)
-    SecurityGroupsIds = []
-    for group in AllSecurityGroups["SecurityGroups"]:
-        SecurityGroupsIds.append(group["GroupId"])
-    return SecurityGroupsIds
+    security_groups_ids = []
+    for group in all_security_groups["SecurityGroups"]:
+        security_groups_ids.append(group["GroupId"])
+    return security_groups_ids
 
 # Removes from the list security groups which appears in network interfaces.
 # Returns unattached GroupID and GroupName as a list of touples.
-def GetUnttachedSecurityGroups(AllSecurityGroups, client):
-    TableData = []
+def describe_unattached_security_groups(all_security_groups, client):
+    table_data = []
     try:
         interfaces = client.describe_network_interfaces()
     except Exception as e:
@@ -41,64 +41,64 @@ def GetUnttachedSecurityGroups(AllSecurityGroups, client):
     for interface in interfaces["NetworkInterfaces"]:
         for group in interface["Groups"]:
             try:
-                AllSecurityGroups.remove(group["GroupId"])
+                all_security_groups.remove(group["GroupId"])
             except: # Pass if group not found.
                 pass
     # Get details about unattached security groups
     try:
-        UnattachedSecurityGroups = client.describe_security_groups(GroupIds = AllSecurityGroups)
+        unattached_security_groups = client.describe_security_groups(GroupIds = all_security_groups)
     except Exception as e:
         print("Something wrong while gettin data about filtered SG from AWS. ", e)
 
     # Format data to table-format.
-    for group in UnattachedSecurityGroups["SecurityGroups"]:
+    for group in unattached_security_groups["SecurityGroups"]:
         column = group["GroupId"], group["GroupName"]
-        TableData.append(column)
+        table_data.append(column)
         
-    return TableData
+    return table_data
 
 # Collecting security group rules
 # Returns list of groups rules in following format: GroupID, GroupName, Protocol, IP, Port, Description
-def DescribeUnsecureSecurityGroups(client, ignorePorts=None):
-    TableData = []
-    IgnorePortsList = []
-    if ignorePorts:
-        IgnorePortsList = ignorePorts.split(",")
+def describe_unsecure_security_groups(client, ignore_ports=None):
+    table_data = []
+    ports_to_ignore = []
+    if ignore_ports:
+        ports_to_ignore = ignore_ports.split(",")
     try:
-        AllSecurityGroups = client.describe_security_groups()
+        all_security_groups = client.describe_security_groups()
     except Exception as e:
         print("Something wrong while getting data about security groups.", e)
-    for group in AllSecurityGroups["SecurityGroups"]:
-        for ipPermission in group["IpPermissions"]:
-            for ipRange in ipPermission["IpRanges"]:
-                if ipRange["CidrIp"] != "0.0.0.0/0":
+    for group in all_security_groups["SecurityGroups"]:
+        for ip_permission in group["IpPermissions"]:
+            for ip_range in ip_permission["IpRanges"]:
+                if ip_range["CidrIp"] != "0.0.0.0/0":
                     continue
                 else:
                     try:
                         # Skip rule, only if port to ignore is not a part of range. Otherwise rule will be printed.
-                        if (str(ipPermission["FromPort"]) in IgnorePortsList) and (str(ipPermission["ToPort"]) in IgnorePortsList):
+                        if (str(ip_permission["FromPort"]) in ports_to_ignore) and (str(ip_permission["ToPort"]) in ports_to_ignore):
                             continue
                         else:
-                            portRange = "{0}-{1}".format(str(ipPermission["FromPort"]), str(ipPermission["ToPort"]))
-                            column = group["GroupId"], group["GroupName"], ipPermission["IpProtocol"], ipRange["CidrIp"], portRange, group["Description"]
-                            TableData.append(column)
+                            port_range = "{0}-{1}".format(str(ip_permission["FromPort"]), str(ip_permission["ToPort"]))
+                            column = group["GroupId"], group["GroupName"], ip_permission["IpProtocol"], ip_range["CidrIp"], port_range, group["Description"]
+                            table_data.append(column)
                     except Exception as e:
                         pass
-    return TableData
+    return table_data
 
 # Main function for scanning unattached security groups
-def UnattachedScanningMain(session):
+def unattached_scanning(session):
     print("Scanning unattached groups.")
-    AllSecurityGroups = GetAllSecurityGroups(session.client("ec2"))
-    TableData = GetUnttachedSecurityGroups(AllSecurityGroups, session.client("ec2"))
+    all_security_groups = describe_all_security_groups(session.client("ec2"))
+    table_data = describe_unattached_security_groups(all_security_groups, session.client("ec2"))
 
-    print(tabulate(TableData, headers=["Security Group ID", "Security Group Name"], tablefmt='orgtbl'))
+    print(tabulate(table_data, headers=["Security Group ID", "Security Group Name"], tablefmt='orgtbl'))
 
 # Main function for scanning unsecure security groups
-def UnsecureScanningMain(session, ignorePorts=None):
+def unsecure_scanning(session, ignore_ports=None):
     print("Security scanning.")
-    TableData = DescribeUnsecureSecurityGroups(session.client("ec2"), ignorePorts)
-    print(tabulate(TableData, headers=["GroupID", "GroupName", "Protocol", "IP", "PortRange", "Description"], tablefmt='orgtbl'))  
+    table_data = describe_unsecure_security_groups(session.client("ec2"), ignore_ports)
+    print(tabulate(table_data, headers=["GroupID", "GroupName", "Protocol", "IP", "PortRange", "Description"], tablefmt='orgtbl'))  
 
 def main():
     # Input args
@@ -111,13 +111,13 @@ def main():
 
     args = parser.parse_args()
 
-    session = CreateSession(args.accesskey, args.secretkey, args.region)
+    session = create_session(args.accesskey, args.secretkey, args.region)
 
     if args.mode == "unattached":
-        UnattachedScanningMain(session)
+        unattached_scanning(session)
 
     elif args.mode == "unsecure":
-        UnsecureScanningMain(session, args.ignoreports)
+        unsecure_scanning(session, args.ignoreports)
 
     else:
         print("Wrong mode.")
