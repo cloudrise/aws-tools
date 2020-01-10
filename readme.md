@@ -31,6 +31,14 @@ $ python sgscanner.py eu-west-1 unattached
 $ python sgscanner.py eu-west-1 unsecure --accesskey="ABCDEF" --secretkey="123456"
 $ python sgscanner.py eu-west-1 unsecure --accesskey="ABCDEF" --secretkey="123456" --ignoreports="40,80,443"
 ```
+You can also inject credentials using export command and then simply execute script. If you do so then you can skip *accesskey* and *secretkey* arguments. Just remember to specify a region and mode!
+```sh
+$ export AWS_ACCESS_KEY_ID="YOUR_AWS_KEY_ID"
+$ export AWS_SECRET_ACCESS_KEY="YOUR_SECRET_KEY"
+$ export AWS_SESSION_TOKEN="YOUR_SESSION_TOKEN"
+
+$ python sgscanner.py region mode
+```
 # IAM Policy
 Policy with minimum required permissions can be found in `sgscanner-policy.json` file.
 
